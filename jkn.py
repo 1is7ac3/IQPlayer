@@ -23,6 +23,9 @@
 import datetime
 import os
 import sys
+import typing
+from PyQt6 import QtCore
+from PyQt6.QtWidgets import QWidget
 import requests
 from lxml import html
 import PyQt6.QtWidgets as Qt
@@ -51,7 +54,12 @@ class Serie:
         self.capi = capi
 
 
-class
+class MainWindows(Qt.QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle('IQplayer')
+
+
 def clear():
     if os.name == "posix":
         os.system('clear')
@@ -95,7 +103,7 @@ def search_engine():
 def GetEpisodesLink(url):
     url = 'https://animeflv.net'+url
     page = geturl(url)
-    rawLinks = page.xpath('//script[contains(., "video")]/text()') 
+    rawLinks = page.xpath('//script[contains(., "video")]/text()')
     epNames = page.xpath('//div[@class="CapiTop"]/h1/text()')
     rawLinks = rawLinks[0].split('":"')
     stream = []
@@ -128,6 +136,7 @@ def Download(stream, savePath, titleCapitulo):
         else:
             i += 1
 
+
 def streaming(stream):
     i = 0
     while i < len(stream):
@@ -148,8 +157,7 @@ def DisplayResult(results):
         print(f'Hora de actualizacion: {today}')
         print('Compruebe la serie que desea Descargar: ')
         app = Qt.QApplication(sys.argv)
-        windows = Qt.QWidget()
-        windows.show()
+
         app.exec()
         for busque in results:
             n = str(busque.num)
@@ -181,15 +189,15 @@ def main():
         print(title)
 
     # Ubicacion de Descarga
-    #path = os.environ['HOME']+'/.Anime'
+    # path = os.environ['HOME']+'/.Anime'
     # Nombre Carpeta
-    #if not os.path.exists(path):
+    # if not os.path.exists(path):
     #    os.mkdir(path)
-    #folderName = title
-    #savePath = os.path.join(path, folderName)
-    #if not os.path.exists(savePath):
+    # folderName = title
+    # savePath = os.path.join(path, folderName)
+    # if not os.path.exists(savePath):
     #    os.mkdir(savePath)
-    #Download(servi, savePath, titleCapitulo)
+    # Download(servi, savePath, titleCapitulo)
 
 
 if __name__ == "__main__":
