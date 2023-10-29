@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 #
-#  AnimeFlv
+#  IQplayer
 #
 #  Copyright 2017 1is7ac3 <isaac.qa13@gmail.com>
 #  Autor: Isaac Quiroz
@@ -22,15 +22,15 @@
 
 import datetime
 import os
-import sys
-import typing
-from PyQt6 import QtCore
-from PyQt6.QtWidgets import QWidget
+import tkinter as tk
+import urllib.request
+from functools import partial
+
 import requests
 from lxml import html
-import PyQt6.QtWidgets as Qt
+from PIL import Image, ImageTk
 
-version = 'JKN 17.05.21 \n'
+version = 'IQplayer 17.05.21 \n'
 
 
 class Episode:
@@ -47,17 +47,12 @@ class Servidor:
 
 
 class Serie:
-    def __init__(self, name, url, num, capi):
+    def __init__(self, name, url, num, capi, img):
         self.name = name
         self.url = url
         self.num = num
         self.capi = capi
-
-
-class MainWindows(Qt.QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle('IQplayer')
+        self.img = img
 
 
 def clear():
@@ -88,27 +83,28 @@ def search_engine():
     serie_links = page.xpath('//a[@class="fa-play"]/@href')
     serie_names = page.xpath('//a/strong[@class="Title"]/text()')
     serie_capi = page.xpath('//a/span[@class="Capi"]/text()')
+    serie_image = page.xpath('//a[@class="fa-play"]//img/@src')
     link_num = len(serie_links)
     if link_num != len(serie_names):
         print('[!] Error Faltan Enlaces!')
         return False
     # Crear lista Serie
-    serielist = []
+    serie_list = []
     for n in range(0, link_num):
-        serie = Serie(serie_names[n], serie_links[n], n, serie_capi[n])
-        serielist.append(serie)
-    return serielist
+        serie = Serie(serie_names[n], serie_links[n], n, serie_capi[n], serie_image[n])
+        serie_list.append(serie)
+    return serie_list
 
 
-def GetEpisodesLink(url):
-    url = 'https://animeflv.net'+url
+def get_episodes_link(url):
+    url = 'https://animeflv.net' + url
     page = geturl(url)
-    rawLinks = page.xpath('//script[contains(., "video")]/text()')
-    epNames = page.xpath('//div[@class="CapiTop"]/h1/text()')
-    rawLinks = rawLinks[0].split('":"')
+    raw_links = page.xpath('//script[contains(., "video")]/text()')
+    ep_names = page.xpath('//div[@class="CapiTop"]/h1/text()')
+    raw_links = raw_links[0].split('":"')
     stream = []
 
-    for a in rawLinks:
+    for a in raw_links:
         if "https:" in a:
             b = a.split('"')
             for c in b:
@@ -117,19 +113,19 @@ def GetEpisodesLink(url):
                 if 'embed' in c:
                     stream.append(c)
 
-    seList = []
+    se_list = []
     for a in stream:
-        servidor = Servidor(a, epNames[0])
-        seList.append(servidor)
-    return seList
+        servidor = Servidor(a, ep_names[0])
+        se_list.append(servidor)
+    streaming(se_list)
 
 
-def Download(stream, savePath, titleCapitulo):
+def download(stream, save_path, title_capitulo):
     i = 0
     while i < len(stream):
         n = str(i)
-        dl = 'youtube-dl -o "' + savePath + '/' + titleCapitulo + ' ' \
-            + n + '.mp4''"' + ' ' + stream[i].url
+        dl = 'youtube-dl -o "' + save_path + '/' + title_capitulo + ' ' \
+             + n + '.mp4''"' + ' ' + stream[i].url
         er = os.system(dl)
         if er == 0:
             i = len(stream)
@@ -140,7 +136,6 @@ def Download(stream, savePath, titleCapitulo):
 def streaming(stream):
     i = 0
     while i < len(stream):
-        n = str(i)
         dl = 'mpv ' + stream[i].url
         er = os.system(dl)
         if er == 0:
@@ -149,55 +144,41 @@ def streaming(stream):
             i += 1
 
 
-def DisplayResult(results):
+def display_result(results):
     while True:
         today = datetime.datetime.today().strftime('%H:%M del %d-%m-%Y')
         clear()
-        print(version)
-        print(f'Hora de actualizacion: {today}')
-        print('Compruebe la serie que desea Descargar: ')
-        app = Qt.QApplication(sys.argv)
-
-        app.exec()
+        url = 'https://animeflv.net'
+        root = tk.Tk()
+        root.title(version)
+        left_frame = tk.Frame(root, width=200, height=400)
+        left_frame.grid(row=5, column=4, padx=10, pady=5)
+        btn = []
+        img = []
+        j = 0
+        i = 0
         for busque in results:
-            n = str(busque.num)
-            print('[', n, ']', busque.name)
-        choice = input('\n Introduzca el numero de la serie a descargar: ')
-        if choice.isdigit():
-            choice = int(choice)
-            if choice >= len(results):
-                print('[!] Error!. El numero no esta en la lista.')
-                input()
-            else:
-                return choice
-        else:
-            print('[!]Error! Introduzca un numero.')
-            input()
+            # urllib.request.urlretrieve(url + busque.img, busque.name+'.jpg')
+            # img.append(ImageTk.PhotoImage(file=busque.name+'.jpg'))
+            img_python = (Image.open(requests.get(url + busque.img, stream=True).raw))
+            img.append(ImageTk.PhotoImage(img_python))
+            print(busque.url,busque.name,busque.img)
+            btn.append(
+                tk.Button(left_frame, text=busque.name, image=img[busque.num],
+                          command=partial(get_episodes_link, busque.url)).grid(row=i, column=j))
+
+            j += 1
+            if j == 4:
+                i += 1
+                j = 0
+        root.mainloop()
 
 
 # Función Principal
 def main():
     # Mostrar Series Encontradas
     busque = search_engine()
-    choice = DisplayResult(busque)
-    # Mostrar Servidores de Descarga
-    title = busque[choice].name
-    servi = GetEpisodesLink(busque[choice].url)
-    titleCapitulo = servi[0].namecap
-    op = input('[D]escargar o [V]er: ')
-    if op == 'v':
-        print(title)
-
-    # Ubicacion de Descarga
-    # path = os.environ['HOME']+'/.Anime'
-    # Nombre Carpeta
-    # if not os.path.exists(path):
-    #    os.mkdir(path)
-    # folderName = title
-    # savePath = os.path.join(path, folderName)
-    # if not os.path.exists(savePath):
-    #    os.mkdir(savePath)
-    # Download(servi, savePath, titleCapitulo)
+    display_result(busque)
 
 
 if __name__ == "__main__":
