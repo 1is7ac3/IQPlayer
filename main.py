@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-#
-#  IQplayer
+
+"""IQplayer
 #
 #  Copyright 2017 1is7ac3 <isaac.qa13@gmail.com>
 #  Autor: Isaac Quiroz
@@ -19,35 +19,42 @@
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
+"""
 
 import datetime
-import os
-import tkinter as tk
-import urllib.request
 from functools import partial
-
+import os
+import subprocess
+import tkinter as tk
+from typing import Sequence, cast
 import requests
 from lxml import html
 from PIL import Image, ImageTk
 
-version = 'IQplayer 17.05.21 \n'
+VERSION = "IQplayer 26.08.24"
 
 
 class Episode:
-    def __init__(self, name, num, url):
+    """Clase para almacenar los datos de un episodio"""
+
+    def __init__(self, name: str, num: int, url: str):
         self.name = name
         self.num = num
         self.url = url
 
 
 class Servidor:
-    def __init__(self, url, namecap):
+    """Clase para almacenar los datos de un servidor de streaming"""
+
+    def __init__(self, url: str, namecap: str):
         self.url = url
         self.namecap = namecap
 
 
 class Serie:
-    def __init__(self, name, url, num, capi, img):
+    """Clase para almacenar los datos de una serie"""
+
+    def __init__(self, name: str, url: str, num: int, capi: str, img: str):
         self.name = name
         self.url = url
         self.num = num
@@ -56,119 +63,148 @@ class Serie:
 
 
 def clear():
+    """Función para limpiar la pantalla de la terminal"""
     if os.name == "posix":
-        os.system('clear')
+        subprocess.run(["clear"], check=False)
     else:
-        os.system('cls')
+        subprocess.run(["cls"], check=False)
     return
 
 
-def geturl(url):
+def geturl(url: str):
+    """Función para obtener el contenido de una URL y parsearlo como HTML"""
     try:
-        page = requests.get(url)
+        page = requests.get(url, timeout=30)
         if page.status_code == 200:
-            page = page.content.decode('utf-8')
+            page = page.content.decode("utf-8")
         else:
-            raise ValueError(f'Error: {page.status_code}')
+            raise ValueError(f"Error: {page.status_code}")
     except ValueError as ve:
         print(ve)
         return False
-    page = html.fromstring(page)
-    return page
+    pages: html.HtmlElement = html.fromstring(page)
+    return pages
+
+
+def to_str(element: html.HtmlElement | bool | None, query: str) -> list[str]:
+    """Extrae una lista de strings de forma segura y tipada."""
+    if not element:
+        return []
+    root = cast(html.HtmlElement, element)
+    raw_result: list[object] = cast(list[object], root.xpath(query))
+    return [item for item in raw_result if isinstance(item, str)]
 
 
 def search_engine():
-    search_url = 'https://animeflv.net'
+    """
+    Función para buscar series en el sitio web de animeflv.net
+    """
+    search_url = "https://jkanime.net"
     page = geturl(search_url)
-    serie_links = page.xpath('//a[@class="fa-play"]/@href')
-    serie_names = page.xpath('//a/strong[@class="Title"]/text()')
-    serie_capi = page.xpath('//a/span[@class="Capi"]/text()')
-    serie_image = page.xpath('//a[@class="fa-play"]//img/@src')
-    link_num = len(serie_links)
-    if link_num != len(serie_names):
-        print('[!] Error Faltan Enlaces!')
+    links = to_str(page, '//div[@class="card ml-2 mr-2"]/a/@href')
+    names = to_str(page, '//a//h5[@class="strlimit card-title"]/text()')
+    capi = to_str(page, '//a//span[@class="badge badge-primary"]/text()')
+    image = to_str(page, '//div[@class="d-thumb"]//img/@src')
+    link_num = len(capi)
+    if link_num > len(names):
+        print("[!] Error Faltan Enlaces!")
         return False
     # Crear lista Serie
-    serie_list = []
+    serie_list: list[Serie] = []
     for n in range(0, link_num):
-        serie = Serie(serie_names[n], serie_links[n], n, serie_capi[n], serie_image[n])
+        serie = Serie(names[n], links[n], n, capi[n], image[n])
         serie_list.append(serie)
     return serie_list
 
 
-def get_episodes_link(url):
-    url = 'https://animeflv.net' + url
+def get_episodes_link(url: str):
+    """
+    Función para obtener los enlaces de los episodios de una serie
+    """
     page = geturl(url)
-    raw_links = page.xpath('//script[contains(., "video")]/text()')
-    ep_names = page.xpath('//div[@class="CapiTop"]/h1/text()')
-    raw_links = raw_links[0].split('":"')
-    stream = []
+    links = to_str(page, '//script[contains(., "jkplayer")]/text()')
+    names = to_str(page, '//div[@class="breadcrumb__links"]/h1/text()')
+    links = links[0].split('":"')
+    stream: list[str] = []
 
-    for a in raw_links:
+    for a in links:
         if "https:" in a:
             b = a.split('"')
             for c in b:
-                if 'stream' in c:
+                if "/jkplayer/" in c:
                     stream.append(c)
-                if 'embed' in c:
-                    stream.append(c)
-
-    se_list = []
+    se_list: list[Servidor] = []
     for a in stream:
-        servidor = Servidor(a, ep_names[0])
+        servidor = Servidor(a, names[0])
         se_list.append(servidor)
     streaming(se_list)
 
 
-def download(stream, save_path, title_capitulo):
+def download(stream: Sequence[Servidor], save_path: str, title_capitulo: str):
+    """
+    Función para descargar videos de los servidores de streaming"""
     i = 0
     while i < len(stream):
         n = str(i)
-        dl = 'youtube-dl -o "' + save_path + '/' + title_capitulo + ' ' \
-             + n + '.mp4''"' + ' ' + stream[i].url
-        er = os.system(dl)
+        dl = (
+            'yt-dlp -o "' + save_path + "/" + title_capitulo + " " + n + ".mp4"
+            '"' + " " + stream[i].url
+        )
+        er = subprocess.run(dl, shell=True, check=False).returncode
         if er == 0:
             i = len(stream)
         else:
             i += 1
 
 
-def streaming(stream):
+def streaming(stream: Sequence[Servidor]):
+    """
+    Función para reproducir videos en streaming
+    """
     i = 0
     while i < len(stream):
-        dl = 'mpv ' + stream[i].url
-        er = os.system(dl)
-        if er == 0:
+        dl = ["mpv", stream[i].url]
+        er = subprocess.run(dl, check=False, capture_output=True)
+        if er.returncode == 0:
             i = len(stream)
         else:
             i += 1
 
 
-def display_result(results):
+def display_result(results: Sequence[Serie]) -> None:
+    """
+    Función para mostrar los resultados en una ventana de Tkinter
+    """
     while True:
-        today = datetime.datetime.today().strftime('%H:%M del %d-%m-%Y')
-        clear()
-        url = 'https://animeflv.net'
+        today = datetime.datetime.today().strftime("%H:%M del %d-%m-%Y")
         root = tk.Tk()
-        root.title(version)
-        left_frame = tk.Frame(root, width=200, height=400)
-        left_frame.grid(row=5, column=4, padx=10, pady=5)
-        btn = []
-        img = []
+        root.title(VERSION + " - " + today)
+        left_frame: tk.Frame = tk.Frame(root, width=50, height=50)
+        left_frame.grid(row=10, column=10, padx=10, pady=5)
+        btn: list[tk.Button] = []
+        img: list[ImageTk.PhotoImage] = []
         j = 0
         i = 0
         for busque in results:
             # urllib.request.urlretrieve(url + busque.img, busque.name+'.jpg')
             # img.append(ImageTk.PhotoImage(file=busque.name+'.jpg'))
-            img_python = (Image.open(requests.get(url + busque.img, stream=True).raw))
+            img_python = Image.open(
+                requests.get(busque.img, stream=True, timeout=30).raw
+            )
             img.append(ImageTk.PhotoImage(img_python))
-            print(busque.url,busque.name,busque.img)
-            btn.append(
-                tk.Button(left_frame, text=busque.name, image=img[busque.num],
-                          command=partial(get_episodes_link, busque.url)).grid(row=i, column=j))
+            btn_widget = tk.Button(
+                left_frame,
+                text=busque.name,
+                image=img[busque.num],
+                command=partial(get_episodes_link, busque.url),
+                width=150,
+                height=150,
+            )
+            btn.append(btn_widget)
+            btn_widget.grid(row=i, column=j)
 
             j += 1
-            if j == 4:
+            if j == 10:
                 i += 1
                 j = 0
         root.mainloop()
@@ -176,9 +212,12 @@ def display_result(results):
 
 # Función Principal
 def main():
-    # Mostrar Series Encontradas
+    """
+    Mostrar Series Encontradas
+    """
     busque = search_engine()
-    display_result(busque)
+    if busque:
+        display_result(busque)
 
 
 if __name__ == "__main__":
