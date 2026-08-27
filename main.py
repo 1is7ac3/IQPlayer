@@ -21,7 +21,7 @@
 #  MA 02110-1301, USA.
 """
 
-import datetime
+from datetime import datetime
 from functools import partial
 import os
 import subprocess
@@ -32,6 +32,11 @@ from lxml import html
 from PIL import Image, ImageTk
 
 VERSION = "IQplayer 26.08.24"
+WINDOW_TITLE_PREFIX = "IQPlayer"
+GRID_COLS = 6
+GRID_ROWS_PER_PAGE = 6
+CARD_WIDTH = 150
+CARD_HEIGHT = 150
 
 
 class Episode:
@@ -109,7 +114,6 @@ def search_engine():
     names = to_str(page, q_name)
     cap = to_str(page, q_cap)
     image = to_str(page, q_image)
-    print(len(links), len(names), len(cap), len(image))
     num_links = len(links)
     if num_links != len(names):
         print("[!] Error Faltan Enlaces!")
@@ -181,10 +185,10 @@ def display_result(results: Sequence[Serie]) -> None:
     Función para mostrar los resultados en una ventana de Tkinter
     """
     while True:
-        today = datetime.datetime.today().strftime("%H:%M del %d-%m-%Y")
+        today = datetime.now().strftime("%H:%M del %d-%m-%Y")
         root = tk.Tk()
-        root.title(VERSION + " - " + today)
-        left_frame: tk.Frame = tk.Frame(root, width=150, height=150)
+        root.title(WINDOW_TITLE_PREFIX + " - " + today)
+        left_frame = tk.Frame(root, width=CARD_WIDTH, height=CARD_HEIGHT)
         left_frame.grid(row=10, column=10, padx=10, pady=5)
         btn: list[tk.Button] = []
         img: list[ImageTk.PhotoImage] = []
@@ -196,7 +200,7 @@ def display_result(results: Sequence[Serie]) -> None:
             img_python = Image.open(
                 requests.get(busque.img, stream=True, timeout=30).raw
             )
-            size = (150, 150)
+            size = (CARD_WIDTH, CARD_HEIGHT)
             img_resize = img_python.resize(size, Image.Resampling.LANCZOS)
             img.append(ImageTk.PhotoImage(img_resize))
             btn_widget = tk.Button(
@@ -204,14 +208,14 @@ def display_result(results: Sequence[Serie]) -> None:
                 text=busque.name,
                 image=img[busque.num],
                 command=partial(get_episodes_link, busque.url),
-                width=150,
-                height=150,
+                width=CARD_WIDTH,
+                height=CARD_HEIGHT,
             )
             btn.append(btn_widget)
             btn_widget.grid(row=i, column=j)
 
             j += 1
-            if j == 6:
+            if j == GRID_COLS:
                 i += 1
                 j = 0
         root.mainloop()
@@ -228,5 +232,4 @@ def main():
 
 
 if __name__ == "__main__":
-    while True:
-        main()
+    main()
