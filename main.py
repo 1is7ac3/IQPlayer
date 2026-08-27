@@ -54,11 +54,11 @@ class Servidor:
 class Serie:
     """Clase para almacenar los datos de una serie"""
 
-    def __init__(self, name: str, url: str, num: int, capi: str, img: str):
+    def __init__(self, name: str, url: str, num: int, cap: str, img: str):
         self.name = name
         self.url = url
         self.num = num
-        self.capi = capi
+        self.cap = cap
         self.img = img
 
 
@@ -101,18 +101,23 @@ def search_engine():
     """
     search_url = "https://jkanime.net"
     page = geturl(search_url)
-    links = to_str(page, '//div[@class="card ml-2 mr-2"]/a/@href')
-    names = to_str(page, '//a//h5[@class="strlimit card-title"]/text()')
-    capi = to_str(page, '//a//span[@class="badge badge-primary"]/text()')
-    image = to_str(page, '//div[@class="d-thumb"]//img/@src')
-    link_num = len(capi)
-    if link_num > len(names):
+    q_link = '//div[@id="animes"]//div[@class="card ml-2 mr-2"]/a/@href'
+    q_name = '//div[@id="animes"]//h5[@class="strlimit card-title"]/text()'
+    q_cap = '//div[@id="animes"]//span[@class="badge badge-primary"]/text()'
+    q_image = '//div[@id="animes"]//div[@class="d-thumb"]//img/@src'
+    links = to_str(page, q_link)
+    names = to_str(page, q_name)
+    cap = to_str(page, q_cap)
+    image = to_str(page, q_image)
+    print(len(links), len(names), len(cap), len(image))
+    num_links = len(links)
+    if num_links != len(names):
         print("[!] Error Faltan Enlaces!")
         return False
     # Crear lista Serie
     serie_list: list[Serie] = []
-    for n in range(0, link_num):
-        serie = Serie(names[n], links[n], n, capi[n], image[n])
+    for n in range(0, num_links):
+        serie = Serie(names[n], links[n], n, cap[n], image[n])
         serie_list.append(serie)
     return serie_list
 
@@ -179,7 +184,7 @@ def display_result(results: Sequence[Serie]) -> None:
         today = datetime.datetime.today().strftime("%H:%M del %d-%m-%Y")
         root = tk.Tk()
         root.title(VERSION + " - " + today)
-        left_frame: tk.Frame = tk.Frame(root, width=50, height=50)
+        left_frame: tk.Frame = tk.Frame(root, width=150, height=150)
         left_frame.grid(row=10, column=10, padx=10, pady=5)
         btn: list[tk.Button] = []
         img: list[ImageTk.PhotoImage] = []
@@ -191,7 +196,9 @@ def display_result(results: Sequence[Serie]) -> None:
             img_python = Image.open(
                 requests.get(busque.img, stream=True, timeout=30).raw
             )
-            img.append(ImageTk.PhotoImage(img_python))
+            size = (150, 150)
+            img_resize = img_python.resize(size, Image.Resampling.LANCZOS)
+            img.append(ImageTk.PhotoImage(img_resize))
             btn_widget = tk.Button(
                 left_frame,
                 text=busque.name,
@@ -204,7 +211,7 @@ def display_result(results: Sequence[Serie]) -> None:
             btn_widget.grid(row=i, column=j)
 
             j += 1
-            if j == 10:
+            if j == 6:
                 i += 1
                 j = 0
         root.mainloop()
