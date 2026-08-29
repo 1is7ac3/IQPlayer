@@ -25,11 +25,14 @@ from datetime import datetime
 from functools import partial
 import os
 import subprocess
-import tkinter as tk
 from typing import Sequence, cast
+from PySide6.QtGui import QPixmap
 import requests
 from lxml import html
-from PIL import Image, ImageTk
+from PIL import Image
+from PySide6.QtWidgets import QApplication, QPushButton
+from PIL.ImageQt import ImageQt
+import ui_main
 
 VERSION = "IQplayer 26.08.24"
 WINDOW_TITLE_PREFIX = "IQPlayer"
@@ -93,7 +96,7 @@ def geturl(url: str):
 
 def to_str(element: html.HtmlElement | bool | None, query: str) -> list[str]:
     """Extrae una lista de strings de forma segura y tipada."""
-    if not element:
+    if element is None:
         return []
     root = cast(html.HtmlElement, element)
     raw_result: list[object] = cast(list[object], root.xpath(query))
@@ -180,45 +183,29 @@ def streaming(stream: Sequence[Servidor]):
             i += 1
 
 
-def display_result(results: Sequence[Serie]) -> None:
+def display_result_qt(results: Sequence[Serie], window: ui_main.MainWindow):
     """
-    Función para mostrar los resultados en una ventana de Tkinter
+    Función para mostrar los resultados en una ventana de PySide6
     """
-    while True:
-        today = datetime.now().strftime("%H:%M del %d-%m-%Y")
-        root = tk.Tk()
-        root.title(WINDOW_TITLE_PREFIX + " - " + today)
-        left_frame = tk.Frame(root, width=CARD_WIDTH, height=CARD_HEIGHT)
-        left_frame.grid(row=10, column=10, padx=10, pady=5)
-        btn: list[tk.Button] = []
-        img: list[ImageTk.PhotoImage] = []
-        j = 0
-        i = 0
-        for busque in results:
-            # urllib.request.urlretrieve(url + busque.img, busque.name+'.jpg')
-            # img.append(ImageTk.PhotoImage(file=busque.name+'.jpg'))
-            img_python = Image.open(
-                requests.get(busque.img, stream=True, timeout=30).raw
-            )
-            size = (CARD_WIDTH, CARD_HEIGHT)
-            img_resize = img_python.resize(size, Image.Resampling.LANCZOS)
-            img.append(ImageTk.PhotoImage(img_resize))
-            btn_widget = tk.Button(
-                left_frame,
-                text=busque.name,
-                image=img[busque.num],
-                command=partial(get_episodes_link, busque.url),
-                width=CARD_WIDTH,
-                height=CARD_HEIGHT,
-            )
-            btn.append(btn_widget)
-            btn_widget.grid(row=i, column=j)
-
-            j += 1
-            if j == GRID_COLS:
-                i += 1
-                j = 0
-        root.mainloop()
+    window.spinner.hide()
+    layout = window.results_layout
+    i = 0
+    j = 0
+    for busque in results:
+        img_python = Image.open(requests.get(busque.img, stream=True, timeout=30).raw)
+        size = (CARD_WIDTH, CARD_HEIGHT)
+        img_resize = img_python.resize(size, Image.Resampling.LANCZOS)
+        img_qt = QPixmap.fromImage(ImageQt(img_resize))
+        btn = QPushButton()
+        btn.setIcon(img_qt)
+        btn.setIconSize(img_qt.size())
+        btn.setFixedSize(CARD_WIDTH, CARD_HEIGHT + 30)
+        btn.clicked.connect(partial(get_episodes_link, busque.url))
+        layout.addWidget(btn, i, j)
+        j += 1
+        if j == GRID_COLS:
+            i += 1
+            j = 0
 
 
 # Función Principal
@@ -226,9 +213,15 @@ def main():
     """
     Mostrar Series Encontradas
     """
+    app = QApplication([])
+    window_qt = ui_main.MainWindow()
+    window_qt.setWindowTitle(WINDOW_TITLE_PREFIX + " - " + VERSION)
+    window_qt.setGeometry(100, 100, 800, 600)
+    window_qt.show()
     busque = search_engine()
     if busque:
-        display_result(busque)
+        display_result_qt(busque, window_qt)
+    app.exec()
 
 
 if __name__ == "__main__":
